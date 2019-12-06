@@ -1,0 +1,20 @@
+
+[openshift]
+bootstrap-0.<cluster_name>.<cluster_domain>.64"
+control-plane-0.<cluster_name>.<cluster_domain> ign_file="master.64"
+control-plane-1.<cluster_name>.<cluster_domain> ign_file="master.64"
+control-plane-2.<cluster_name>.<cluster_domain> ign_file="master.64"
+worker-0.<cluster_name>.<cluster_domain> ign_file="worker.64"
+worker-1.<cluster_name>.<cluster_domain> ign_file="worker.64"
+worker-2.<cluster_name>.<cluster_domain> ign_file="worker.64"
+worker-3.<cluster_name>.<cluster_domain> ign_file="worker.64"
+
+
+[openshift:vars]
+vcenter_url=
+vcenter_datacenter=
+vcenter_folder=<clustername>
+vcenter_username=
+vcenter_password=
+vcenter_template="rhcos-latest" #template of rhcos-latest ova
+dhcpd_server=

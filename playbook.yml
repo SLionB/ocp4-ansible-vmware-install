@@ -1,0 +1,79 @@
+---
+- name: Clone Red Hat CoreOS image
+  hosts: openshift
+  connection: local
+  gather_facts: no
+  serial: 1
+  tasks:
+  - name: Clone the template
+    register: guest_info
+    vmware_guest:
+      hostname: "{{ vcenter_url }}"
+      username: "{{ vcenter_username }}"
+      password: "{{ vcenter_password }}"
+      validate_certs: False
+      name: "{{ inventory_hostname }}"
+      template: "{{ vcenter_template }}"
+      datacenter: "{{ vcenter_datacenter}}"
+      folder: "{{ vcenter_folder }}"
+      state: present
+      wait_for_ip_address: no
+   
+  - name: Create Entry in DHCP server
+    delegate_to: "{{ dhcpd_server }}"
+    register: updated_dhcp
+    blockinfile:
+      path: /etc/dhcp/dhcpd.hosts
+      marker: "# {mark} ANSIBLE MANAGED BLOCK {{ inventory_hostname }}"
+      block: | 
+        host {{ inventory_hostname.split('.')[0] }} {
+            hardware ethernet {{ guest_info.instance.hw_eth0.macaddress }};
+            fixed-address {{ lookup('dig', inventory_hostname) }};
+            option host-name "{{ inventory_hostname }}";
+        }  
+  - name: Restart DHCPd on DHCP server
+    delegate_to: "{{ dhcpd_server }}"
+    when: updated_dhcp.changed
+    systemd:
+      state: restarted
+      daemon_reload: yes
+      name: dhcpd
+
+  - name: Grow Disk to 120GB
+    vmware_guest_disk:
+      hostname: "{{ vcenter_url }}"
+      username: "{{ vcenter_username }}"
+      password: "{{ vcenter_password }}"
+      validate_certs: False
+      name: "{{ inventory_hostname }}"
+      datacenter: "{{ vcenter_datacenter}}"
+      disk:
+      - state: present
+        scsi_controller: 0
+        unit_number: 0
+        size: 120Gb
+        autoselect_datastore: True 
+  
+  - name: Generate the template if this host is the bootstrap host
+    vmware_guest: #_custom_attributes:
+      hostname: "{{ vcenter_url }}"
+      username: "{{ vcenter_username }}"
+      password: "{{ vcenter_password }}"
+      validate_certs: False
+      name: "{{ inventory_hostname }}"
+      state: present
+      vapp_properties:
+        - id: guestinfo.ignition.config.data
+          value: "{{ lookup('template', ign_file) }}"
+        - id: guestinfo.ignition.config.data.encoding
+          value: base64
+  
+  - name: Turn on VM
+    vmware_guest:
+      hostname: "{{ vcenter_url }}"
+      username: "{{ vcenter_username }}"
+      password: "{{ vcenter_password }}"
+      validate_certs: False
+      name: "{{ inventory_hostname }}"
+      state: poweredon
+   
