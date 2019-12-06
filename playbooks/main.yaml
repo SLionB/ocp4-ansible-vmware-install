@@ -1,0 +1,5 @@
+- name: Setup ign and localhosts
+  import_playbook: ocp-installer.yaml
+
+- name: Create all the VM's, power them on bootstrap the cluster
+  import_playbook: vmware_template_clone.yaml

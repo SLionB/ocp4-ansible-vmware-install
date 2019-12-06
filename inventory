@@ -1,20 +1,51 @@
-
-[openshift]
-bootstrap-0.<cluster_name>.<cluster_domain>.64"
-control-plane-0.<cluster_name>.<cluster_domain> ign_file="master.64"
-control-plane-1.<cluster_name>.<cluster_domain> ign_file="master.64"
-control-plane-2.<cluster_name>.<cluster_domain> ign_file="master.64"
-worker-0.<cluster_name>.<cluster_domain> ign_file="worker.64"
-worker-1.<cluster_name>.<cluster_domain> ign_file="worker.64"
-worker-2.<cluster_name>.<cluster_domain> ign_file="worker.64"
-worker-3.<cluster_name>.<cluster_domain> ign_file="worker.64"
+[all:children]
+deployerhost
+openshift
 
 
-[openshift:vars]
+[deployerhost]
+localhost
+
+
+[openshift:children]
+bootstrap
+master
+worker
+
+[bootstrap]
+bootstrap-0
+
+[master]
+control-plane-0
+control-plane-1
+control-plane-2
+
+[worker]
+worker-0
+
+[master:vars]
+mode="master"
+
+[worker:vars]
+mode="worker"
+
+[bootstrap:vars]
+mode="bootstrap"
+
+
+[all:vars]
+openshift_base_domain=
+openshift_cluster_name=
+ign_server_location=<dns name of the deployerhost>
 vcenter_url=
 vcenter_datacenter=
-vcenter_folder=<clustername>
 vcenter_username=
 vcenter_password=
-vcenter_template="rhcos-latest" #template of rhcos-latest ova
-dhcpd_server=
+vcenter_template=<template name of rhcos  ova>
+vcenter_default_datastore=
+vmware_cluster
+vmware_network_name=
+dhcpd_server=<location of dhcpd server>
+
+
+

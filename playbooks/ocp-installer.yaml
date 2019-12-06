@@ -1,0 +1,67 @@
+- name: Setup everything for install
+  hosts: deployerhost
+  connection: local
+  tasks:
+    - name: Create a directory if it does not exist
+      file:
+        path: /opt/openshift-installer
+        state: directory
+        mode: '0755'
+
+    - name: Download openshift-installer
+      unarchive:
+        src: "{{ openshift_installer_zip_remote_src | default('https://mirror.openshift.com/pub/openshift-v4/clients/ocp/4.2.9/openshift-install-linux-4.2.9.tar.gz') }}"
+        remote_src: yes
+        dest: /opt/openshift-installer
+
+    - name: Copy Template to Temp Directory.
+      template:
+        src: templates/openshift-install.yaml.j2
+        dest: /opt/openshift-installer/install-config.yaml
+
+    - name: Execute openshift-installer to create manifests
+      shell: /opt/openshift-installer/openshift-install --dir=/opt/openshift-installer create manifests
+      
+    - name: Ensure that masters are not scheduleable
+      replace:
+        path: /opt/openshift-installer/manifests/cluster-scheduler-02-config.yml
+        regexp: 'true'
+        replace: 'false'
+      
+    - name: Create the ignition configs
+      shell: /opt/openshift-installer/openshift-install --dir=/opt/openshift-installer create ignition-configs
+    
+
+    - name: Create a webserver directory if it does not exist
+      file:
+        path: /opt/openshift-installer/webserver
+        state: directory
+        mode: '0755'
+
+    - name: Create the append-bootstrap file.
+      template: 
+        src: templates/bootstrap-appender.ign.j2
+        dest: /opt/openshift-installer/bootstrap-appender.ign
+
+    - name: Copy the bootstrap.ign to webserver
+      copy:
+        src: /opt/openshift-installer/bootstrap.ign
+        dest: /opt/openshift-installer/webserver/
+
+    - name: Convert ignfiles to base64
+      shell: "base64 -w0 /opt/openshift-installer/{{ item }}.ign > /opt/openshift-installer/{{ item }}.64"
+      with_items:
+        - worker
+        - bootstrap-appender
+        - master
+
+    - name: Rename bootstrap-appender.64 to bootstrap-appender.64
+      copy:
+        src: /opt/openshift-installer/bootstrap-appender.64
+        dest: /opt/openshift-installer/bootstrap.64
+        
+    - name: Copy bootstrap installer to a network locataion accessible via HTTP.
+      shell: "cd /opt/openshift-installer/webserver/ && python2 -m SimpleHTTPServer {{ ign_server_network_port |default('8000') }}"
+      async: 3600
+      poll: 0
+    

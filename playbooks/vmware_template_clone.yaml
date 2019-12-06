@@ -3,7 +3,7 @@
   hosts: openshift
   connection: local
   gather_facts: no
-  serial: 1
+  #serial: 1
   tasks:
   - name: Clone the template
     register: guest_info
@@ -12,24 +12,36 @@
       username: "{{ vcenter_username }}"
       password: "{{ vcenter_password }}"
       validate_certs: False
-      name: "{{ inventory_hostname }}"
+      name: "{{ inventory_hostname }}.{{ openshift_cluster_name }}.{{ openshift_base_domain }}"
       template: "{{ vcenter_template }}"
       datacenter: "{{ vcenter_datacenter}}"
-      folder: "{{ vcenter_folder }}"
+      folder: "{{ openshift_cluster_name }}"
       state: present
       wait_for_ip_address: no
-   
+      hardware:
+        num_cpus: "{{ cpu_count | default('4') | int}}"
+        memory_mb: "{{ mb_memory | default('16384') | int }}"
+        mem_reservation: 16384
+        num_cpu_cores_per_socket: 1
+      customvalues:
+        - key: "Disk.EnableUUID"
+          value: "TRUE"
+        - key: "sched.cpu.latencySensitivity"
+          value: "High" 
+            
   - name: Create Entry in DHCP server
     delegate_to: "{{ dhcpd_server }}"
     register: updated_dhcp
+    vars:
+      fqdn: "{{ inventory_hostname }}.{{ openshift_cluster_name }}.{{ openshift_base_domain }}"
     blockinfile:
       path: /etc/dhcp/dhcpd.hosts
       marker: "# {mark} ANSIBLE MANAGED BLOCK {{ inventory_hostname }}"
       block: | 
-        host {{ inventory_hostname.split('.')[0] }} {
+        host {{ inventory_hostname }} {
             hardware ethernet {{ guest_info.instance.hw_eth0.macaddress }};
-            fixed-address {{ lookup('dig', inventory_hostname) }};
-            option host-name "{{ inventory_hostname }}";
+            fixed-address {{ lookup('dig', fqdn) }};
+            option host-name "{{ inventory_hostname }}.{{ openshift_cluster_name }}.{{ openshift_base_domain}}";
         }  
   - name: Restart DHCPd on DHCP server
     delegate_to: "{{ dhcpd_server }}"
@@ -38,14 +50,14 @@
       state: restarted
       daemon_reload: yes
       name: dhcpd
-
+  
   - name: Grow Disk to 120GB
     vmware_guest_disk:
       hostname: "{{ vcenter_url }}"
       username: "{{ vcenter_username }}"
       password: "{{ vcenter_password }}"
       validate_certs: False
-      name: "{{ inventory_hostname }}"
+      name: "{{ inventory_hostname }}.{{ openshift_cluster_name }}.{{ openshift_base_domain}}"
       datacenter: "{{ vcenter_datacenter}}"
       disk:
       - state: present
@@ -60,11 +72,11 @@
       username: "{{ vcenter_username }}"
       password: "{{ vcenter_password }}"
       validate_certs: False
-      name: "{{ inventory_hostname }}"
+      name: "{{ inventory_hostname }}.{{ openshift_cluster_name }}.{{ openshift_base_domain}}"
       state: present
       vapp_properties:
         - id: guestinfo.ignition.config.data
-          value: "{{ lookup('template', ign_file) }}"
+          value: "{{ lookup('template', '/opt/openshift-installer/'+mode+'.64') }}"
         - id: guestinfo.ignition.config.data.encoding
           value: base64
   
@@ -74,6 +86,5 @@
       username: "{{ vcenter_username }}"
       password: "{{ vcenter_password }}"
       validate_certs: False
-      name: "{{ inventory_hostname }}"
+      name: "{{ inventory_hostname }}.{{ openshift_cluster_name }}.{{ openshift_base_domain}}"
       state: poweredon
-   
